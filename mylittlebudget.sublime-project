@@ -1,0 +1,22 @@
+{
+	"folders":
+	[
+		{
+			"follow_symlinks": true,
+			"path": "."
+		}
+	],
+	"SublimeLinter":
+	{
+		"@python": 3.3,
+		"linters":
+		{
+			"pep8":
+			{
+				"@disable": false,
+				"ignore": "",
+				"max-line-length": 80
+			}
+		}
+	}
+}

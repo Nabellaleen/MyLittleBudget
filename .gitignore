@@ -52,3 +52,6 @@ docs/_build/
 
 # PyBuilder
 target/
+
+# personnal IDE files
+*.sublime-workspace
