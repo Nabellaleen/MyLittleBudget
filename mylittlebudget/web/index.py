@@ -8,7 +8,7 @@ def hello(name):
     return template('<b>Hello {{name}}</b> !', name=name)
 
 @route('/')
-@view('web/templates/index.tpl')
+@view('mylittlebudget/web/templates/index.tpl')
 def index():
 	context = {'title': 'My Little Budget'}
 	return context

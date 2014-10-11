@@ -3,7 +3,7 @@
 
 from bottle import run
 
-import web.index
+from mylittlebudget.web import index
 
 def main():
     run(host='localhost', port=8080)
