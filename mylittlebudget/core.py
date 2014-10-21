@@ -9,13 +9,17 @@ from mylittlebudget.web import index
 
 class User:
     """TODO"""
-    def __init__(self, name):
+    def __init__(self, name, share_index):
         self.name = name
+        self.share_index = share_index
+
+    def __str__(self):
+        return 'User({0}, {1})'.format(self.name, self.share_index)
 
 
 class Entry:
     """docstring for Entry"""
-    def __init__(self, name, category, date, value, count):
+    def __init__(self, name, category, date, value, count, users):
         if value == 0:
             raise Exception('Value cannot be zero')
         self.name = name
@@ -23,6 +27,7 @@ class Entry:
         self.date = date
         self.value = value
         self.count = count
+        self.users = users
 
     def __str__(self):
         entry_type = 'Expense' if self.is_expense() else 'Credit'
@@ -36,7 +41,10 @@ class Entry:
         else:
             entry_item_str = '{0} at {1:n}€'.format(self.name,
                                                     abs(self.value))
-        return '{0}: {1}'.format(entry_type_str, entry_item_str)
+        users_str = [str(user) for user in self.users]
+        entry_users_str = 'Users : ' + ', '.join(users_str)
+        return '{0}: {1} - {2}'.format(entry_type_str, entry_item_str,
+                                       entry_users_str)
 
     def is_expense(self):
         return self.value < 0
@@ -57,15 +65,16 @@ class Account:
             self.categories = {category.name: category
                                for category in categories}
 
-    def add_expense(self, name, category, total, date=datetime.today(),
-                    count=1):
+    def add_expense(self, name, category, total, users=None,
+                    date=datetime.today(), count=1):
         new_category = self.get_category(category)
         if not new_category:
             exception_message = '{0} not previously defined in {1}'.format(
                 category, self)
             raise Exception(exception_message)
         new_total = total if total < 0 else -total
-        new_entry = Entry(name, new_category, date, new_total, count)
+        new_users = users if users is not None else self.users
+        new_entry = Entry(name, new_category, date, new_total, count, new_users)
         self._entries.append(new_entry)
 
     def get_expenses(self):
@@ -109,8 +118,9 @@ def main():
     categories[beauty_category.name] = beauty_category
     ######################
 
-    user_names = ['Héloïse', 'Florian']
-    users = [User(name=name) for name in user_names]
+    users_dict = [{'name': 'Héloïse', 'share_index': 1300},
+                  {'name': 'Florian', 'share_index': 2300}]
+    users = [User(**user) for user in users_dict]
     current_account = Account(name='household',
                               users=users,
                               categories=categories.values())
