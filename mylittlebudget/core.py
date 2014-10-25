@@ -65,6 +65,10 @@ class Account:
             self.categories = {category.name: category
                                for category in categories}
 
+    @property
+    def total_share_index(self):
+        return sum([user.share_index for user in self.users])
+
     def add_expense(self, name, category, total, users=None,
                     date=datetime.today(), count=1):
         new_category = self.get_category(category)
@@ -79,6 +83,19 @@ class Account:
 
     def get_expenses(self):
         return [entry for entry in self._entries if entry.is_expense()]
+
+    def get_expenses_by_user(self):
+        expenses = []
+        total_share_index = self.total_share_index
+        for entry in self._entries:
+            if not entry.is_expense():
+                continue
+            expense = {'entry': entry}
+            expenses.append(expense)
+            for user in entry.users:
+                user_share = entry.value * user.share_index / total_share_index
+                expense[user.name] = user_share
+        return expenses
 
     def add_category(self, category):
         self.categories[category.name] = category
@@ -129,15 +146,28 @@ def main():
     current_account.add_expense(name='Restaurant', category=food_category,
                                 total=14)
     current_account.add_expense(name='Milk', category='Food',
-                                total=4, count=4)
+                                total=4, count=4, users=users[:1])
     current_account.add_expense(name='Bread', category=food_category,
-                                total=1, count=2)
+                                total=1, count=2, users=users[1:2])
     current_account.add_expense(name='Soap', category=beauty_category,
                                 total=12, count=2)
 
     current_expenses = current_account.get_expenses()
     for expense in current_expenses:
         print(expense)
+
+    from prettytable import PrettyTable
+    standard_columns = ['Expenses', 'Date']
+    users_columns = [user.name for user in current_account.users]
+    expenses_table = PrettyTable(standard_columns + users_columns)
+    current_expenses_by_user = current_account.get_expenses_by_user()
+    for expense in current_expenses_by_user:
+        entry = expense['entry']
+        standard_row = [entry.name, entry.date]
+        users_row = [expense.get(user) or '' for user in users_columns]
+        expenses_table.add_row(standard_row + users_row)
+
+    print(expenses_table)
 
     # run(host='localhost', port=8080)
 
