@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: UTF-8 -*-
 
+from numbers import Number
+
 from bottle import run
 from datetime import datetime
 
@@ -123,6 +125,15 @@ class Category(object):
         return 'category {0}'.format(self.name)
 
 
+def total_sum(x, y):
+    try:
+        return x + y
+    except TypeError:
+        x = x if isinstance(x, Number) else 0
+        y = y if isinstance(y, Number) else 0
+        return x + y
+
+
 def main():
     categories_names = ['Vehicle', 'Food']
     categories = {name: Category(name=name) for name in categories_names}
@@ -160,12 +171,18 @@ def main():
     standard_columns = ['Expenses', 'Date']
     users_columns = [user.name for user in current_account.users]
     expenses_table = PrettyTable(standard_columns + users_columns)
+    total_row = [0 for u in users_columns]
     current_expenses_by_user = current_account.get_expenses_by_user()
     for expense in current_expenses_by_user:
         entry = expense['entry']
         standard_row = [entry.name, entry.date]
         users_row = [expense.get(user) or '' for user in users_columns]
+        total_row = [total_sum(x, y) for x, y in zip(total_row, users_row)]
         expenses_table.add_row(standard_row + users_row)
+    empty_row = ['' for i in expenses_table.field_names]
+    expenses_table.add_row(empty_row)
+    total_label_row = ['Total', '']
+    expenses_table.add_row(total_label_row + total_row)
 
     print(expenses_table)
 
