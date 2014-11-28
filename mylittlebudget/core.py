@@ -71,7 +71,7 @@ class Credit(object):
 
 class Entry:
     """docstring for Entry"""
-    def __init__(self, name, category, date, value, users, count=1):
+    def __init__(self, name, category, date, value, owner, users, count=1):
         self.name = name
         self.category = category
         self.date = date
@@ -80,6 +80,9 @@ class Entry:
                 .format(value))
         self.value = value
         self.count = count
+        if not isinstance(owner, User):
+            raise TypeError('owner parameter ({0}) is not a User')
+        self.owner = owner
         self.users = users
 
     def __str__(self):
@@ -91,10 +94,11 @@ class Entry:
             entry_item_str = self.__get_multi_count_entry_item_str()
         else:
             entry_item_str = self.__get_single_count_entry_item_str()
+        entry_owner_str = 'Owner : {0}'.format(self.owner)
         users_str = [str(user) for user in self.users]
         entry_users_str = 'Users : ' + ', '.join(users_str)
-        return '{0}: {1} - {2}'.format(entry_type_str, entry_item_str,
-                                       entry_users_str)
+        return '{0}: {1} - {2} - {3}'.format(entry_type_str, entry_item_str,
+                                             entry_owner_str, entry_users_str)
 
     def __get_multi_count_entry_item_str(self):
         return '{0} {1} at {2:n}€'.format(self.count,
@@ -105,9 +109,12 @@ class Entry:
         return '{0} at {1:n}€'.format(self.name,
                                       abs(self.value.get_value()))
 
+
 class Account:
     """TODO"""
     _entries = []
+
+    session = None
 
     def __init__(self, name, users, categories=None):
         self.name = name
@@ -123,13 +130,18 @@ class Account:
 
     def add_expense(self, name, category, value, users=None,
                     date=datetime.today()):
+        # TODO : generify this check with a decorator
+        if not self.session:
+            raise Exception('add_expense action need an opened session')
+
         new_category = self.get_category(category)
         if not new_category:
             exception_message = '{0} not previously defined in {1}'.format(
                 category, self)
             raise Exception(exception_message)
         new_users = users if users is not None else self.users
-        new_entry = Entry(name, new_category, date, value, new_users)
+        owner = self.session.user
+        new_entry = Entry(name, new_category, date, value, owner, new_users)
         self._entries.append(new_entry)
 
     def get_expenses(self):
@@ -147,12 +159,17 @@ class Account:
         for entry in self._entries:
             if entry_filter and entry.value.__class__ not in entry_filter:
                 continue
-            expense = {'entry': entry}
+            expense = {'entry': entry,
+                       'parts': {},
+                       'owners': {},
+                       'totals': {}}
             expenses.append(expense)
             entry_value = entry.value.get_value()
             for user in entry.users:
                 user_share = entry_value * user.share_index / total_share_index
-                expense[user.name] = user_share
+                expense['parts'][user.name] = user_share
+            for user in self.users:
+                expense['owners'][user.name] = entry_value if user is entry.owner else 0
         return expenses
 
     def add_category(self, category):
@@ -167,11 +184,38 @@ class Account:
         else:
             raise Exception('Not handled parameter : {0}'.format(category))
 
+    def get_user(self, user_name):
+        for user in self.users:
+            if user.name is user_name:
+                return user
+        else:
+            return None
+
+    def open_session(self, user_name):
+        if self.session:
+            raise Exception('A session is already opened')
+        # Check credentials
+        user = self.get_user(user_name)
+        if not user:
+            # Login error
+            raise ValueError('Unknown user : {0}'.format(user_name))
+        # Process to login
+        self.session = User_Session(user)
+
+    def close_session(self):
+        self.session = None
+
     def __str__(self):
         return '{0} account'.format(self.name)
 
 
-class Category(object):
+class User_Session:
+
+    def __init__(self, user):
+        self.user = user
+
+
+class Category:
     """docstring for Category"""
 
     def __init__(self, name):
@@ -188,6 +232,20 @@ def total_sum(x, y):
         x = x if isinstance(x, Number) else 0
         y = y if isinstance(y, Number) else 0
         return x + y
+
+
+def get_users_parts(users_cols, parts):
+    for user in users_cols:
+        part = parts.get(user) or 0
+        if part:
+            yield '{0:.2f}'.format(abs(parts.get(user)))
+        else:
+            yield ''
+
+
+def get_users_totals(users_cols, users_parts, owners_row):
+    for i, user in enumerate(users_cols):
+        yield float(users_parts[i] or 0) - float(owners_row[i] or 0)
 
 
 def main():
@@ -208,6 +266,9 @@ def main():
     current_account = Account(name='household',
                               users=users,
                               categories=categories.values())
+
+    current_account.open_session('Florian')
+
     current_account.add_expense(name='Fuel', category=vehicle_category,
                                 value=Expense(22))
     current_account.add_expense(name='Restaurant', category=food_category,
@@ -224,21 +285,45 @@ def main():
         print(expense)
 
     from prettytable import PrettyTable
-    standard_columns = ['Expenses', 'Date']
-    users_columns = [user.name for user in current_account.users]
-    expenses_table = PrettyTable(standard_columns + users_columns)
-    total_row = [0 for u in users_columns]
+    standard_col = ['Expenses', 'Date']
+    users_cols = [user.name for user in current_account.users]
+    users_parts_labels = ['{0} part'.format(user) for user in users_cols]
+    owners_labels = ['{0} expense'.format(user) for user in users_cols]
+    users_totals_labels = ['{0} total'.format(user) for user in users_cols]
+    expenses_table = PrettyTable(standard_col + users_parts_labels +
+                                 owners_labels + users_totals_labels)
+    total_parts_row = [0 for u in users_cols]
+    total_owners_row = [0 for u in users_cols]
+    total_totals_row = [0 for u in users_cols]
     current_expenses_by_user = current_account.get_expenses_by_user()
+    # from pprint import pprint; pprint(current_expenses_by_user)
     for expense in current_expenses_by_user:
         entry = expense['entry']
+        parts = expense['parts']
+        owners = expense['owners']
+        # Standard columns
         standard_row = [entry.name, entry.date]
-        users_row = [abs(expense.get(user) or 0) or '' for user in users_columns]
-        total_row = [total_sum(x, y) for x, y in zip(total_row, users_row)]
-        expenses_table.add_row(standard_row + users_row)
+        # Parts columns
+        users_row = [part for part in get_users_parts(users_cols, parts)]
+        # Owners columns
+        owners_row = [abs(owners.get(user)) or '' for user in users_cols]
+        # Users totals columns
+        users_totals_row = [total for total in get_users_totals(users_cols,
+                                                                users_row,
+                                                                owners_row)]
+        # Create row
+        expenses_table.add_row(standard_row + users_row +
+                               owners_row + users_totals_row)
+        # Compute totals
+        total_parts_row = [total_sum(x, y) for x, y in zip(total_parts_row,
+                                                           users_row)]
+        total_owners_row = [total_sum(x, y) for x, y in zip(total_owners_row,
+                                                            owners_row)]
     empty_row = ['' for i in expenses_table.field_names]
     expenses_table.add_row(empty_row)
     total_label_row = ['Total', '']
-    expenses_table.add_row(total_label_row + total_row)
+    expenses_table.add_row(total_label_row + total_parts_row +
+                           total_owners_row + total_totals_row)
 
     print(expenses_table)
 
