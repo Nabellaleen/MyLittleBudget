@@ -2,3 +2,6 @@
 # -*- coding: UTF-8 -*-
 
 from mylittlebudget.core import main
+
+# Avoid pyflakes warnings
+main
