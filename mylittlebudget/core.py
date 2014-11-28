@@ -124,9 +124,8 @@ class Account:
             self.categories = {category.name: category
                                for category in categories}
 
-    @property
-    def total_share_index(self):
-        return sum([user.share_index for user in self.users])
+    def get_multi_share_index(self, users):
+        return sum([user.share_index for user in users])
 
     def add_expense(self, name, category, value, users=None,
                     date=datetime.today()):
@@ -155,7 +154,6 @@ class Account:
     def get_entries_by_user(self, entry_filter=[],
                             date_min=None, date_max=None):
         expenses = []
-        total_share_index = self.total_share_index
         for entry in self._entries:
             if entry_filter and entry.value.__class__ not in entry_filter:
                 continue
@@ -165,11 +163,20 @@ class Account:
                        'totals': {}}
             expenses.append(expense)
             entry_value = entry.value.get_value()
-            for user in entry.users:
-                user_share = entry_value * user.share_index / total_share_index
-                expense['parts'][user.name] = user_share
+            total_share_index = self.get_multi_share_index(entry.users)
             for user in self.users:
-                expense['owners'][user.name] = entry_value if user is entry.owner else 0
+                # Compute user share
+                user_share = 0
+                if user in entry.users:
+                    user_share = entry_value * user.share_index / total_share_index
+                expense['parts'][user.name] = user_share
+                # Compute owners contribution
+                owner_value = 0
+                if user is entry.owner:
+                    owner_value = entry_value
+                expense['owners'][user.name] = owner_value
+                # Compute users totals
+                expense['totals'][user.name] = owner_value - user_share
         return expenses
 
     def add_category(self, category):
@@ -234,18 +241,13 @@ def total_sum(x, y):
         return x + y
 
 
-def get_users_parts(users_cols, parts):
+def get_formated_elements(users_cols, elements):
     for user in users_cols:
-        part = parts.get(user) or 0
-        if part:
-            yield '{0:.2f}'.format(abs(parts.get(user)))
+        element = elements.get(user) or 0
+        if element:
+            yield '{0:.2f}'.format(element)
         else:
             yield ''
-
-
-def get_users_totals(users_cols, users_parts, owners_row):
-    for i, user in enumerate(users_cols):
-        yield float(users_parts[i] or 0) - float(owners_row[i] or 0)
 
 
 def main():
@@ -301,16 +303,16 @@ def main():
         entry = expense['entry']
         parts = expense['parts']
         owners = expense['owners']
+        users_totals = expense['totals']
         # Standard columns
         standard_row = [entry.name, entry.date]
         # Parts columns
-        users_row = [part for part in get_users_parts(users_cols, parts)]
+        users_row = [part for part in get_formated_elements(users_cols, parts)]
         # Owners columns
         owners_row = [abs(owners.get(user)) or '' for user in users_cols]
         # Users totals columns
-        users_totals_row = [total for total in get_users_totals(users_cols,
-                                                                users_row,
-                                                                owners_row)]
+        users_totals_row = [total for total in get_formated_elements(users_cols,
+                                                                     users_totals)]
         # Create row
         expenses_table.add_row(standard_row + users_row +
                                owners_row + users_totals_row)
