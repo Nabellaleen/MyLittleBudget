@@ -14,11 +14,14 @@ from mylittlebudget.entry_value import Expense
 
 def total_sum(x, y):
     try:
-        return x + y
-    except TypeError:
-        x = x if isinstance(x, Number) else 0
-        y = y if isinstance(y, Number) else 0
-        return x + y
+        x = x if isinstance(x, Number) else float(x)
+    except ValueError:
+        x = 0
+    try:
+        y = y if isinstance(y, Number) else float(y)
+    except ValueError:
+        y = 0
+    return '{0:.2f}'.format(x + y)
 
 
 def get_formated_elements(users_cols, elements):
@@ -31,7 +34,7 @@ def get_formated_elements(users_cols, elements):
 
 
 def main():
-    categories_names = ['Vehicle', 'Food']
+    categories_names = ['Vehicle', 'Food', 'Craft']
     categories = {name: Category(name=name) for name in categories_names}
 
     vehicle_category = categories['Vehicle']
@@ -50,7 +53,6 @@ def main():
                               categories=categories.values())
 
     current_account.open_session('Florian')
-
     current_account.add_expense(name='Fuel', category=vehicle_category,
                                 value=Expense(22))
     current_account.add_expense(name='Restaurant', category=food_category,
@@ -61,6 +63,17 @@ def main():
                                 value=Expense(1), users=users[1:2])
     current_account.add_expense(name='Soap', category=beauty_category,
                                 value=Expense(12))
+    current_account.close_session()
+
+
+    current_account.open_session('Héloïse')
+    current_account.add_expense(name='Material', category='Craft',
+                                value=Expense(35), users=users[:1])
+    current_account.add_expense(name='Microchip', category='Craft',
+                                value=Expense(23), users=users[1:2])
+    current_account.add_expense(name='Beer', category='Food',
+                                value=Expense(13))
+    current_account.close_session()
 
     current_expenses = current_account.get_expenses()
     for expense in current_expenses:
@@ -78,7 +91,6 @@ def main():
     total_owners_row = [0 for u in users_cols]
     total_totals_row = [0 for u in users_cols]
     current_expenses_by_user = current_account.get_expenses_by_user()
-    # from pprint import pprint; pprint(current_expenses_by_user)
     for expense in current_expenses_by_user:
         entry = expense['entry']
         parts = expense['parts']
@@ -101,8 +113,7 @@ def main():
                                                            users_row)]
         total_owners_row = [total_sum(x, y) for x, y in zip(total_owners_row,
                                                             owners_row)]
-        total_totals_row = [total_sum(x, y) for x, y in zip(total_totals_row,
-                                                            users_totals_row)]
+        total_totals_row = [total_sum(x, y) for x, y in zip(total_totals_row, users_totals_row)]
     empty_row = ['' for i in expenses_table.field_names]
     expenses_table.add_row(empty_row)
     total_label_row = ['Total', '']
